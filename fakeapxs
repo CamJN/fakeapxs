@@ -1,6 +1,6 @@
 #!/bin/sh
 
-TMPDIR=`mktemp -dt fakeapxs`
+TMPDIR=$(mktemp -dt fakeapxs)
 
 curl https://raw.githubusercontent.com/apple-oss-distributions/apache/main/httpd/support/apxs.in |
     sed -e "s;\@perlbin\@;$(which perl);" \
@@ -19,11 +19,11 @@ cp apr-config "$TMPDIR/apu-1-config"
 sed -E \
     -e 's;\$\(SDK_PATH\);'"$(xcrun --show-sdk-path);g" \
     -e 's;\$\(BUILD\);'"${TMPDIR};g" \
-    -e 's;\$\(HTTPD_VERSION\);'"$(httpd -v | fgrep 'Server version' | cut -d/ -f2 | cut -d' ' -f1);g" \
-    -e 's;\$\(HTTPD_MMN\);'"$(httpd -V -E /dev/null | fgrep "Server's Module Magic Number" | cut -d: -f 2 | tr -d ' ');g" \
-    -e 's;\$\(ENABLED_DSO_MODULES\);'",$(apachectl -TME /dev/null | fgrep shared | sed 's/_module.*/,/g' | tr -d '\n ' | sed 's/,$//');g" \
-    -e 's;\$\(APR_VERSION\);'"$(httpd -V -E /dev/null | fgrep 'Compiled using' | cut -d: -f2 | tr ',' '\n' | awk '/APR[^-]/{print $2}' | tr -d '[:blank:]');g" \
-    -e 's;\$\(APU_VERSION\);'"$(httpd -V -E /dev/null | fgrep 'Compiled using' | cut -d: -f2 | tr ',' '\n' | awk '/APR-/{print $2}' | tr -d '[:blank:]');g" \
+    -e 's;\$\(HTTPD_VERSION\);'"$(httpd -v | grep -F 'Server version' | cut -d/ -f2 | cut -d' ' -f1);g" \
+    -e 's;\$\(HTTPD_MMN\);'"$(httpd -V -E /dev/null | grep -F "Server's Module Magic Number" | cut -d: -f 2 | tr -d ' ');g" \
+    -e 's;\$\(ENABLED_DSO_MODULES\);'",$(apachectl -TME /dev/null | grep -F shared | sed 's/_module.*/,/g' | tr -d '\n ' | sed 's/,$//');g" \
+    -e 's;\$\(APR_VERSION\);'"$(httpd -V -E /dev/null | grep -F 'Compiled using' | cut -d: -f2 | tr ',' '\n' | awk '/APR[^-]/{print $2}' | tr -d '[:blank:]');g" \
+    -e 's;\$\(APU_VERSION\);'"$(httpd -V -E /dev/null | grep -F 'Compiled using' | cut -d: -f2 | tr ',' '\n' | awk '/APR-/{print $2}' | tr -d '[:blank:]');g" \
     config_vars.mk > "$TMPDIR/config_vars.mk"
 
 "$TMPDIR/apxs.out" "$@"
