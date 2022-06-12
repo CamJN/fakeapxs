@@ -1,103 +1,48 @@
-#!/usr/bin/env bash
+#!/bin/sh
 
+TMPDIR=$(mktemp -dt apr-config)
 SDK_PATH="$(xcrun --show-sdk-path)"
-DIR='/usr'
-BINDIR='/usr/bin'
-INCLUDEDIR="$SDK_PATH/usr/include/apr-1"
-CC='/usr/bin/cc'
-CPP='/usr/bin/cc -E'
-CFLAGS=
-CPPFLAGS=' -DDARWIN -DSIGPROCMASK_SETS_THREAD_MASK -DDARWIN_10 ' # darwin 10 might be wrong...
-INCLUDES=" -I$INCLUDEDIR "
-LDFLAGS='  -laprutil-1 '
-APR_LIBS=' -lpthread '
-LDAP_LIBS=' -lldap -llber '
-APU_LIBS=' -lexpat -liconv -lsqlite3 '
-APR_SRCDIR='/Library/Caches/com.apple.xbs/Sources/apr/apr-36/apr/apr'
-APU_ARCDIR='/Library/Caches/com.apple.xbs/Sources/apr/apr-36/apr-util/apr-util'
-INSTALLBUILDDIR='/usr/share/apr-1/build-1'
-APR_LINK_LD=" -L$SDK_PATH/usr/lib -lapr-1 "
-APU_LINK_LD=" -L$SDK_PATH/usr/lib -laprutil-1 "
+APR_VERSION="$(pkg-config /usr/lib/pkgconfig/apr-1.pc --modversion)"
+
+curl -s "https://raw.githubusercontent.com/apache/apr/${APR_VERSION}/apr-config.in" |
+    sed -e "s;\@APR_MAJOR_VERSION\@;${APR_VERSION%%.*};" \
+        -e "s;\@APR_DOTTED_VERSION\@;${APR_VERSION};" \
+        -e "s;\@prefix\@;/usr;" \
+        -e "s;\@exec_prefix\@;/usr;" \
+        -e "s;\@bindir\@;/usr/bin;" \
+        -e "s;\@libdir\@;${SDK_PATH}/usr/lib;" \
+        -e "s;\@datarootdir\@;/usr;" \
+        -e "s;\@datadir\@;/usr;" \
+        -e "s;\@installbuilddir\@;/usr/share/apr-${APR_VERSION%%.*}/build-${APR_VERSION%%.*};" \
+        -e "s;\@includedir\@;${SDK_PATH}/usr/include/apr-${APR_VERSION%%.*};" \
+        -e "s;\@CC\@;clang;" \
+        -e "s;\@CPP\@;clang -E;" \
+        -e "s;\@SHELL\@;/bin/sh;" \
+        -e "s;\@EXTRA_CPPFLAGS\@; -DDARWIN -DSIGPROCMASK_SETS_THREAD_MASK;" \
+        -e "s;\@EXTRA_CFLAGS\@; -g -O2 -Wall;" \
+        -e "s;\@EXTRA_LDFLAGS\@;;" \
+        -e "s;\@EXTRA_LIBS\@; -lpthread;" \
+        -e "s;\@EXTRA_INCLUDES\@; -I${SDK_PATH}/usr/include/apr-${APR_VERSION%%.*};" \
+        -e "s;\@shlibpath_var\@;DYLD_LIBRARY_PATH;" \
+        -e "s;\@apr_srcdir\@;/Library/Caches/com.apple.xbs/Sources/apr/apr-36/apr/apr;" \
+        -e "s;\@apr_builddir\@;;" \
+        -e "s;\@so_ext\@;lo;" \
+        -e 's;\@export_lib_target\@;-rpath \\\$(libdir) \\\$(OBJECTS);' \
+        -e "s;\@APR_LIBNAME\@;apr-${APR_VERSION%%.*};" \
+        -e "s;\@APR_CONFIG_LOCATION\@;${TMPDIR};" > "$TMPDIR/apr-config.out"
+
+chmod +x "$TMPDIR/apr-config.out"
+
+"$TMPDIR/apr-config.out" "$@"
+
+#rm -rf "$TMPDIR"
+
+exit
 APR_LINK_LIBTOOL=" -L$SDK_PATH/usr/lib -R$SDK_PATH/usr/lib -lapr-1 "
 APU_LINK_LIBTOOL=" -L$SDK_PATH/usr/lib -R$SDK_PATH/usr/lib -laprutil-1 "
-SHLIB_PATH_VAR='DYLD_LIBRARY_PATH'
-APR_LA_FILE=
-APU_LA_FILE=
-APR_SO_EXT='lo'
-APR_LIB_TARGET=' -rpath $(libdir) $(OBJECTS) ' # don't use double quotes here, these are literals
-APR_LIBTOOL='/usr/share/apr-1/build-1/libtool'
-APR_VERSION="$(httpd -V -E /dev/null | fgrep 'Compiled using' | cut -d: -f2 | tr ',' '\n' | awk '/APR[^-]/{print $2}' | tr -d '[:blank:]')"
-APU_VERSION="$(httpd -V -E /dev/null | fgrep 'Compiled using' | cut -d: -f2 | tr ',' '\n' | awk '/APR-/{print $2}' | tr -d '[:blank:]')"
-HELP='This is a fake apr-config, minimally implemented to make life on macOS easier after the built in tool was removed'
-DBM_LIBS=
-OLD_EXPAT='@APR_XML_EXPAT_OLD@'
-DB_VERSION='0'
 
 while [ -n "$1" ]; do
     case "${1%%=*}" in
-        --prefix)
-            #change prefix to DIR
-            if [[ "$1" == "*=*" ]] ; then DIR="${1##*=}" ; fi
-            echo -n "$DIR"
-            ;;
-        --bindir)
-            #print location where binaries are installed
-            echo -n "$BINDIR"
-            ;;
-        --includedir)
-            #print location where headers are installed
-            echo -n "$INCLUDEDIR"
-            ;;
-        --cc)
-            #print C compiler name
-            echo -n "$CC"
-            ;;
-        --cpp)
-            #print C preprocessor name and any required options
-            echo -n "$CPP"
-            ;;
-        --cflags)
-            #print C compiler flags
-            echo -n "$CFLAGS"
-            ;;
-        --cppflags)
-            #print C preprocessor flags
-            echo -n "$CPPFLAGS"
-            ;;
-        --includes)
-            #print include information
-            echo -n "$INCLUDES"
-            ;;
-        --ldflags)
-            #print linker flags
-            echo -n "$LDFLAGS"
-            ;;
-        --libs)
-            # print additional libraries to link against
-            if [ "${0##*/}" == 'apr-config' ] || [ "${0##*/}" == 'apr-1-config' ] ; then
-                echo -n "$APR_LIBS"
-            else
-                if [ "${ldap:-true}" == "true" ] ; then
-                    echo -n "$LDAP_LIBS"
-                fi
-                if [ "${dbm:-true}" == "true" ] ; then
-                    echo -n "$DBM_LIBS"
-                fi
-                echo -n "$APU_LIBS"
-            fi
-            ;;
-        --srcdir)
-            #print APR source directory
-            if [ "${0##*/}" == 'apr-config' ] || [ "${0##*/}" == 'apr-1-config' ] ; then
-                echo -n "$APR_SRCDIR"
-            else
-                echo -n "$APU_SRCDIR"
-            fi
-            ;;
-        --installbuilddir)
-            # print APR build helper directory
-            echo -n "$INSTALLBUILDDIR"
-            ;;
         --link-ld)
             #print link switch(es) for linking to APR
             if [ "${0##*/}" == 'apr-config' ] || [ "${0##*/}" == 'apr-1-config' ] ; then
@@ -114,67 +59,6 @@ while [ -n "$1" ]; do
                 echo -n "$APU_LINK_LIBTOOL"
             fi
             ;;
-        --shlib-path-var)
-            #print the name of the shared library path env var
-            echo -n "$SHLIB_PATH_VAR"
-            ;;
-        --apr-la-file)
-            #print the path to the .la file, if available
-            echo -n "$APR_LA_FILE"
-            ;;
-        --apr-so-ext)
-            #print the extensions of shared objects on this platform
-            echo -n "$APR_SO_EXT"
-            ;;
-        --apr-lib-target)
-            #print the libtool target information
-            echo -n "$APR_LIB_TARGET"
-            ;;
-        --apr-libtool)
-            #print the path to APR's libtool
-            echo -n "$APR_LIBTOOL"
-            ;;
-        --version)
-            #print the APR's version as a dotted triple
-            if [ "${0##*/}" == 'apr-config' ] || [ "${0##*/}" == 'apr-1-config' ] ; then
-                echo -n "$APR_VERSION"
-            else
-                echo -n "$APU_VERSION"
-            fi
-            ;;
-        --help)
-            # print the help
-            echo -n "$HELP"
-            ;;
-        --avoid-ldap)
-            #      do not include ldap library information with --libs
-            ldap=false
-            ;;
-        --ldap-libs)
-            #       print library information to link with ldap
-            echo -n "$LDAP_LIBS"
-            ;;
-        --avoid-dbm)
-            #       do not include DBM library information with --libs
-            dbm=false
-            ;;
-        --dbm-libs)
-            #        print additional library information to link with DBM
-            echo -n "$DBM_LIBS"
-            ;;
-        --apu-la-file)
-            #     print the path to the .la file, if available
-            echo -n "$APU_LA_FILE"
-            ;;
-        --old-expat)
-            #       indicate if APR-util was built against an old expat
-            echo -n "$OLD_EXPAT"
-            ;;
-        --db-version)
-            #      print the DB version
-            echo -n "$DB_VERSION"
-            ;;
     esac
     shift
 done
-echo

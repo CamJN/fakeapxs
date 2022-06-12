@@ -1,0 +1,34 @@
+#!/bin/sh
+
+TMPDIR=$(mktemp -dt apu-config)
+SDK_PATH="$(xcrun --show-sdk-path)"
+APU_VERSION="$(pkg-config /usr/lib/pkgconfig/apr-util-1.pc --modversion)"
+
+curl -s "https://svn.apache.org/repos/asf/apr/apr-util/tags/${APU_VERSION}/apu-config.in" |
+    sed -e "s;\@APRUTIL_MAJOR_VERSION\@;${APU_VERSION%%.*};" \
+        -e "s;\@APRUTIL_DOTTED_VERSION\@;${APR_VERSION};" \
+        -e "s;\@prefix\@;/usr;" \
+        -e "s;\@exec_prefix\@;/usr;" \
+        -e "s;\@bindir\@;/usr/bin;" \
+        -e "s;\@libdir\@;${SDK_PATH}/usr/lib;" \
+        -e "s;\@includedir\@;${SDK_PATH}/usr/include/apr-${APU_VERSION%%.*};" \
+        -e "s;\@APRUTIL_EXPORT_LIBS\@;-lexpat -liconv -lsqlite3 -lldap -llber;" \
+        -e "s;\@APRUTIL_INCLUDES\@;;" \
+        -e "s;\@APRUTIL_LDFLAGS\@;;" \
+        -e "s;\@LDADD_ldap\@;-lldap -llber;" \
+        -e "s;\@LDADD_dbm_db\@;;" \
+        -e "s;\@LDADD_dbm_gdbm\@;;" \
+        -e "s;\@LDADD_dbm_ndbm\@;;" \
+        -e "s;\@APRUTIL_LIBNAME\@;aprutil-${APU_VERSION%%.*};" \
+        -e "s;\@abs_srcdir\@;/Library/Caches/com.apple.xbs/Sources/apr/apr-36/apr-util/apr-util;" \
+        -e "s;\@abs_builddir\@;/Library/Caches/com.apple.xbs/Binaries/apr/apr-36~188/Objects/apr-util;" \
+        -e "s;\@apu_db_version\@;0;" \
+        -e "s;\@APU_CONFIG_LOCATION\@;${TMPDIR};" > "$TMPDIR/apu-config.out"
+
+# apple did not replace this one    -e "s;\@APR_XML_EXPAT_OLD\@;;" \
+
+chmod +x "$TMPDIR/apu-config.out"
+
+"$TMPDIR/apu-config.out" "$@"
+
+#rm -rf "$TMPDIR"
