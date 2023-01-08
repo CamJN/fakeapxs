@@ -20,8 +20,8 @@ curl -s "https://svn.apache.org/repos/asf/apr/apr-util/tags/${APU_VERSION}/apu-c
         -e "s;\@LDADD_dbm_gdbm\@;;" \
         -e "s;\@LDADD_dbm_ndbm\@;;" \
         -e "s;\@APRUTIL_LIBNAME\@;aprutil-${APU_VERSION%%.*};" \
-        -e "s;\@abs_srcdir\@;/Library/Caches/com.apple.xbs/Sources/apr/apr-36/apr-util/apr-util;" \
-        -e "s;\@abs_builddir\@;/Library/Caches/com.apple.xbs/Binaries/apr/apr-36~188/Objects/apr-util;" \
+        -e "s;\@abs_srcdir\@;${SDK_PATH};" \
+        -e "s;\@abs_builddir\@;${SDK_PATH}/usr;" \
         -e "s;\@apu_db_version\@;0;" \
         -e "s;\@APU_CONFIG_LOCATION\@;${TMPDIR};" > "$TMPDIR/apu-config.out"
 

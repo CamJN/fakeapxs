@@ -24,8 +24,8 @@ curl -s "https://raw.githubusercontent.com/apache/apr/${APR_VERSION}/apr-config.
         -e "s;\@EXTRA_LIBS\@; -lpthread;" \
         -e "s;\@EXTRA_INCLUDES\@; -I${SDK_PATH}/usr/include/apr-${APR_VERSION%%.*};" \
         -e "s;\@shlibpath_var\@;DYLD_LIBRARY_PATH;" \
-        -e "s;\@apr_srcdir\@;/Library/Caches/com.apple.xbs/Sources/apr/apr-36/apr/apr;" \
-        -e "s;\@apr_builddir\@;;" \
+        -e "s;\@apr_srcdir\@;${SDK_PATH};" \
+        -e "s;\@apr_builddir\@;${TMPDIR};" \
         -e "s;\@so_ext\@;lo;" \
         -e 's;\@export_lib_target\@;-rpath \\\$(libdir) \\\$(OBJECTS);' \
         -e "s;\@APR_LIBNAME\@;apr-${APR_VERSION%%.*};" \
