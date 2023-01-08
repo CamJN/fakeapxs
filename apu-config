@@ -29,6 +29,10 @@ curl -s "https://svn.apache.org/repos/asf/apr/apr-util/tags/${APU_VERSION}/apu-c
 
 chmod +x "$TMPDIR/apu-config.out"
 
-"$TMPDIR/apu-config.out" "$@"
+echo -n "$@"':' >> /tmp/apu.log
+
+"$TMPDIR/apu-config.out" "$@"  | tee -a /tmp/apu.log
+
+echo  >> /tmp/apu.log
 
 #rm -rf "$TMPDIR"

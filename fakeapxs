@@ -26,7 +26,11 @@ sed -E \
     -e 's;\$\(APU_VERSION\);'"$(pkg-config /usr/lib/pkgconfig/apr-util-1.pc --modversion);g" \
     config_vars.mk > "$TMPDIR/config_vars.mk"
 
-"$TMPDIR/apxs.out" "$@"
+echo -n "$@"':' >> /tmp/fakeapxs.log
+
+"$TMPDIR/apxs.out" "$@" | tee -a /tmp/fakeapxs.log
+
+echo  >> /tmp/fakeapxs.log
 
 # can't do this cleanup, as the path is given out to other tools to run apr and apu utils
 #rm -rf "$TMPDIR"

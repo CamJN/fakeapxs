@@ -33,7 +33,11 @@ curl -s "https://raw.githubusercontent.com/apache/apr/${APR_VERSION}/apr-config.
 
 chmod +x "$TMPDIR/apr-config.out"
 
-"$TMPDIR/apr-config.out" "$@"
+echo -n "$@"':' >> /tmp/apr.log
+
+"$TMPDIR/apr-config.out" "$@" | tee -a /tmp/apr.log
+
+echo  >> /tmp/apr.log
 
 #rm -rf "$TMPDIR"
 
