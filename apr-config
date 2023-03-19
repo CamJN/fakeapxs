@@ -4,6 +4,8 @@ TMPDIR=$(mktemp -dt apr-config)
 SDK_PATH="$(xcrun --show-sdk-path)"
 APR_VERSION="$(pkg-config /usr/lib/pkgconfig/apr-1.pc --modversion)"
 
+cp /usr/local/opt/fakeapxs/libexec/libtool "$TMPDIR/libtool"
+
 curl -s "https://raw.githubusercontent.com/apache/apr/${APR_VERSION}/apr-config.in" |
     sed -e "s;\@APR_MAJOR_VERSION\@;${APR_VERSION%%.*};" \
         -e "s;\@APR_DOTTED_VERSION\@;${APR_VERSION};" \
