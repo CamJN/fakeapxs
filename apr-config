@@ -29,40 +29,40 @@ curl -s "https://raw.githubusercontent.com/apache/apr/${APR_VERSION}/apr-config.
         -e "s;\@apr_srcdir\@;${SDK_PATH};" \
         -e "s;\@apr_builddir\@;${TMPDIR};" \
         -e "s;\@so_ext\@;lo;" \
-        -e 's;\@export_lib_target\@;-rpath \\\$(libdir) \\\$(OBJECTS);' \
+        -e "s;\@export_lib_target\@;-rpath \\\$(libdir) \\\$(OBJECTS);" \
         -e "s;\@APR_LIBNAME\@;apr-${APR_VERSION%%.*};" \
         -e "s;\@APR_CONFIG_LOCATION\@;${TMPDIR};" > "$TMPDIR/apr-config.out"
 
 chmod +x "$TMPDIR/apr-config.out"
 
-echo -n "$@"':' >> /tmp/apr.log
+output="$("$TMPDIR/apr-config.out" "$@")"
 
-"$TMPDIR/apr-config.out" "$@" | tee -a /tmp/apr.log
+printf "%s: %s\n" "$*" "$output" >> /tmp/apr.log
 
-echo  >> /tmp/apr.log
-
-#rm -rf "$TMPDIR"
+echo "$output"
 
 exit
+# shellcheck disable=SC2317
 APR_LINK_LIBTOOL=" -L$SDK_PATH/usr/lib -R$SDK_PATH/usr/lib -lapr-1 "
+# shellcheck disable=SC2317
 APU_LINK_LIBTOOL=" -L$SDK_PATH/usr/lib -R$SDK_PATH/usr/lib -laprutil-1 "
-
+# shellcheck disable=SC2317
 while [ -n "$1" ]; do
     case "${1%%=*}" in
         --link-ld)
             #print link switch(es) for linking to APR
-            if [ "${0##*/}" == 'apr-config' ] || [ "${0##*/}" == 'apr-1-config' ] ; then
-                echo -n "$APR_LINK_LD"
+            if [ "${0##*/}" = 'apr-config' ] || [ "${0##*/}" = 'apr-1-config' ] ; then
+                printf "%s" "$APR_LINK_LD"
             else
-                echo -n "$APU_LINK_LD"
+                printf "%s" "$APU_LINK_LD"
             fi
             ;;
         --link-libtool)
             #print the libtool inputs for linking to APR
-            if [ "${0##*/}" == 'apr-config' ] || [ "${0##*/}" == 'apr-1-config' ] ; then
-                echo -n "$APR_LINK_LIBTOOL"
+            if [ "${0##*/}" = 'apr-config' ] || [ "${0##*/}" = 'apr-1-config' ] ; then
+                printf "%s" "$APR_LINK_LIBTOOL"
             else
-                echo -n "$APU_LINK_LIBTOOL"
+                printf "%s" "$APU_LINK_LIBTOOL"
             fi
             ;;
     esac
