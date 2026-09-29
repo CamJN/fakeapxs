@@ -6,7 +6,7 @@ APR_VERSION="$(pkg-config /usr/lib/pkgconfig/apr-1.pc --modversion)"
 
 cp /usr/local/opt/fakeapxs/libexec/libtool "$TMPDIR/libtool"
 
-curl -s "https://raw.githubusercontent.com/apache/apr/${APR_VERSION}/apr-config.in" |
+curl -s "https://raw.githubusercontent.com/apple-oss-distributions/apr/refs/heads/main/apr/apr/apr-config.in" |
     sed -e "s;\@APR_MAJOR_VERSION\@;${APR_VERSION%%.*};" \
         -e "s;\@APR_DOTTED_VERSION\@;${APR_VERSION};" \
         -e "s;\@prefix\@;/usr;" \
@@ -42,29 +42,3 @@ printf "%s: %s\n" "$*" "$output" >> /tmp/apr.log
 echo "$output"
 
 exit
-# shellcheck disable=SC2317
-APR_LINK_LIBTOOL=" -L$SDK_PATH/usr/lib -R$SDK_PATH/usr/lib -lapr-1 "
-# shellcheck disable=SC2317
-APU_LINK_LIBTOOL=" -L$SDK_PATH/usr/lib -R$SDK_PATH/usr/lib -laprutil-1 "
-# shellcheck disable=SC2317
-while [ -n "$1" ]; do
-    case "${1%%=*}" in
-        --link-ld)
-            #print link switch(es) for linking to APR
-            if [ "${0##*/}" = 'apr-config' ] || [ "${0##*/}" = 'apr-1-config' ] ; then
-                printf "%s" "$APR_LINK_LD"
-            else
-                printf "%s" "$APU_LINK_LD"
-            fi
-            ;;
-        --link-libtool)
-            #print the libtool inputs for linking to APR
-            if [ "${0##*/}" = 'apr-config' ] || [ "${0##*/}" = 'apr-1-config' ] ; then
-                printf "%s" "$APR_LINK_LIBTOOL"
-            else
-                printf "%s" "$APU_LINK_LIBTOOL"
-            fi
-            ;;
-    esac
-    shift
-done
