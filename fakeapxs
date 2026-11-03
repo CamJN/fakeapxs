@@ -1,26 +1,37 @@
 #!/bin/sh
 
+set -e
+
 TMPDIR=$(mktemp -dt fakeapxs)
 
-curl -s https://raw.githubusercontent.com/apple-oss-distributions/apache/main/httpd/support/apxs.in |
+curl -sf https://raw.githubusercontent.com/apple-oss-distributions/apache/main/httpd/support/apxs.in |
     sed -e "s;\@perlbin\@;$(which perl);" \
         -e "s;\@exp_bindir\@;/usr/sbin;" \
         -e "s;\@MOD_SO_ENABLED\@;yes;" \
         -e "s;\@exp_installbuilddir\@;${TMPDIR};" > "$TMPDIR/apxs.out"
 
+# die loudly when the fetch failed (curl body of an error page, offline, …)
+head -n 1 "$TMPDIR/apxs.out" | grep -q '^#!' || {
+    echo "fakeapxs: failed to fetch apxs.in" >&2
+    exit 1
+}
+
 chmod +x "$TMPDIR/apxs.out"
 
 ln -s /usr/share/httpd/build/* "$TMPDIR"
 
-SCRIPT_DIR=$( cd -- "$( dirname -- "${BASH_SOURCE[0]}" )" &> /dev/null && pwd )
+SCRIPT_DIR=$(cd -- "$(dirname -- "$0")" && pwd)
 
 # careful, mixed quotes below are on purpose, to make escaping easier, and then interpolate subcommands/variables
+# rm in case the build dir ever ships a config_vars.mk again (the symlink
+# would make the redirect below write into the read-only /usr/share)
+rm -f "$TMPDIR/config_vars.mk"
 sed -E \
     -e 's;\$\(SDK_PATH\);'"$(xcrun --show-sdk-path);g" \
     -e 's;\$\(BUILD\);'"${TMPDIR};g" \
     -e 's;\$\(CONFIGS\);'"${SCRIPT_DIR};g" \
     -e 's;\$\(HTTPD_VERSION\);'"$(httpd -v | grep -F 'Server version' | cut -d/ -f2 | cut -d' ' -f1);g" \
-    -e 's;\$\(HTTPD_MMN\);'"$(httpd -V -E /dev/null | grep -F "Server's Module Magic Number" | cut -d: -f 2 | tr -d ' ');g" \
+    -e 's;\$\(HTTPD_MMN\);'"$(httpd -V -E /dev/null 2>&1 | grep -F "Server's Module Magic Number" | cut -d: -f 2 | tr -d ' ');g" \
     -e 's;\$\(ENABLED_DSO_MODULES\);'",$(apachectl -TME /dev/null | grep -F shared | sed 's/_module.*/,/g' | tr -d '\n ' | sed 's/,$//');g" \
     -e 's;\$\(APR_VERSION\);'"$(pkg-config /usr/lib/pkgconfig/apr-1.pc --modversion);g" \
     -e 's;\$\(APU_VERSION\);'"$(pkg-config /usr/lib/pkgconfig/apr-util-1.pc --modversion);g" \
@@ -28,9 +39,17 @@ sed -E \
 
 printf '%s:' "$*" >> /tmp/fakeapxs.log
 
-"$TMPDIR/apxs.out" "$@" | tee -a /tmp/fakeapxs.log
+set +e
+"$TMPDIR/apxs.out" "$@" > "$TMPDIR/out" 2>&1
+rc=$?
+set -e
 
-echo  >> /tmp/fakeapxs.log
+cat "$TMPDIR/out"
+cat "$TMPDIR/out" >> /tmp/fakeapxs.log
+
+echo >> /tmp/fakeapxs.log
 
 # can't do this cleanup, as the path is given out to other tools to run apr and apu utils
 #rm -rf "$TMPDIR"
+
+exit "$rc"

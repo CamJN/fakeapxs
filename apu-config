@@ -1,38 +1,52 @@
 #!/bin/sh
+# apu-config shim for macOS 27+. Generates the upstream apu-config template
+# with paths pointing into the SDK, then runs it.
+
+set -e
 
 TMPDIR=$(mktemp -dt apu-config)
 SDK_PATH="$(xcrun --show-sdk-path)"
 APU_VERSION="$(pkg-config /usr/lib/pkgconfig/apr-util-1.pc --modversion)"
+APU_MAJOR="${APU_VERSION%%.*}"
 
-curl -s "https://svn.apache.org/repos/asf/apr/apr-util/tags/${APU_VERSION}/apu-config.in" |
-    sed -e "s;\@APRUTIL_MAJOR_VERSION\@;${APU_VERSION%%.*};" \
-        -e "s;\@APRUTIL_DOTTED_VERSION\@;${APR_VERSION};" \
+curl -sf "https://svn.apache.org/repos/asf/apr/apr-util/tags/${APU_VERSION}/apu-config.in" |
+    sed -e "s;\@APRUTIL_MAJOR_VERSION\@;${APU_MAJOR};" \
+        -e "s;\@APRUTIL_DOTTED_VERSION\@;${APU_VERSION};" \
         -e "s;\@prefix\@;/usr;" \
         -e "s;\@exec_prefix\@;/usr;" \
         -e "s;\@bindir\@;/usr/bin;" \
         -e "s;\@libdir\@;${SDK_PATH}/usr/lib;" \
-        -e "s;\@includedir\@;${SDK_PATH}/usr/include/apr-${APU_VERSION%%.*};" \
+        -e "s;\@includedir\@;${SDK_PATH}/usr/include/apr-${APU_MAJOR};" \
         -e "s;\@APRUTIL_EXPORT_LIBS\@;-lexpat -liconv -lsqlite3 -lldap -llber;" \
-        -e "s;\@APRUTIL_INCLUDES\@;;" \
-        -e "s;\@APRUTIL_LDFLAGS\@;;" \
+        -e "s;\@APRUTIL_INCLUDES\@;-I${SDK_PATH}/usr/include/apr-${APU_MAJOR};" \
+        -e "s;\@APRUTIL_LDFLAGS\@;-L${SDK_PATH}/usr/lib;" \
         -e "s;\@LDADD_ldap\@;-lldap -llber;" \
         -e "s;\@LDADD_dbm_db\@;;" \
         -e "s;\@LDADD_dbm_gdbm\@;;" \
         -e "s;\@LDADD_dbm_ndbm\@;;" \
-        -e "s;\@APRUTIL_LIBNAME\@;aprutil-${APU_VERSION%%.*};" \
+        -e "s;\@APRUTIL_LIBNAME\@;aprutil-${APU_MAJOR};" \
         -e "s;\@abs_srcdir\@;${SDK_PATH};" \
-        -e "s;\@abs_builddir\@;${SDK_PATH}/usr;" \
+        -e "s;\@abs_builddir\@;${SDK_PATH}/usr/lib;" \
         -e "s;\@apu_db_version\@;0;" \
-        -e "s;\@APU_CONFIG_LOCATION\@;${TMPDIR};" > "$TMPDIR/apu-config.out"
+        -e "s;\@APU_CONFIG_LOCATION\@;installed;" > "$TMPDIR/apu-config.out"
+
+# die loudly when the fetch failed (curl body of an error page, offline, …)
+head -n 1 "$TMPDIR/apu-config.out" | grep -q '^#!' || {
+    echo "fakeapxs: failed to fetch apu-config.in" >&2
+    exit 1
+}
 
 # apple did not replace this one    -e "s;\@APR_XML_EXPAT_OLD\@;;" \
 
 chmod +x "$TMPDIR/apu-config.out"
 
-echo -n "$@"':' >> /tmp/apu.log
+set +e
+output="$("$TMPDIR/apu-config.out" "$@")"
+rc=$?
+set -e
 
-"$TMPDIR/apu-config.out" "$@"  | tee -a /tmp/apu.log
+printf "%s: %s\n" "$*" "$output" >> /tmp/apu.log
 
-echo  >> /tmp/apu.log
+echo "$output"
 
-#rm -rf "$TMPDIR"
+exit "$rc"

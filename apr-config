@@ -1,13 +1,28 @@
 #!/bin/sh
+# apr-config shim for macOS 27+, whose SDK no longer ships
+# /usr/share/apr-1.0/build-1/libtool. Generates Apple's apr-config template
+# with paths pointing into the SDK plus the libtool bundled with this
+# formula, then runs it.
+
+set -e
 
 TMPDIR=$(mktemp -dt apr-config)
 SDK_PATH="$(xcrun --show-sdk-path)"
 APR_VERSION="$(pkg-config /usr/lib/pkgconfig/apr-1.pc --modversion)"
+APR_MAJOR="${APR_VERSION%%.*}"
 
-cp /usr/local/opt/fakeapxs/libexec/libtool "$TMPDIR/libtool"
+# the formula installs libtool into ../libexec; a bare checkout keeps it
+# next to this script
+SCRIPT_DIR=$(cd -- "$(dirname -- "$0")" && pwd)
+LIBTOOL_DIR="$SCRIPT_DIR/../libexec"
+[ -f "$LIBTOOL_DIR/libtool" ] || LIBTOOL_DIR="$SCRIPT_DIR"
+[ -f "$LIBTOOL_DIR/libtool" ] || {
+    echo "fakeapxs: cannot find bundled libtool next to $0" >&2
+    exit 1
+}
 
-curl -s "https://raw.githubusercontent.com/apple-oss-distributions/apr/refs/heads/main/apr/apr/apr-config.in" |
-    sed -e "s;\@APR_MAJOR_VERSION\@;${APR_VERSION%%.*};" \
+curl -sf "https://raw.githubusercontent.com/apple-oss-distributions/apr/refs/heads/main/apr/apr/apr-config.in" |
+    sed -e "s;\@APR_MAJOR_VERSION\@;${APR_MAJOR};" \
         -e "s;\@APR_DOTTED_VERSION\@;${APR_VERSION};" \
         -e "s;\@prefix\@;/usr;" \
         -e "s;\@exec_prefix\@;/usr;" \
@@ -15,30 +30,41 @@ curl -s "https://raw.githubusercontent.com/apple-oss-distributions/apr/refs/head
         -e "s;\@libdir\@;${SDK_PATH}/usr/lib;" \
         -e "s;\@datarootdir\@;/usr;" \
         -e "s;\@datadir\@;/usr;" \
-        -e "s;\@installbuilddir\@;/usr/share/apr-${APR_VERSION%%.*}/build-${APR_VERSION%%.*};" \
-        -e "s;\@includedir\@;${SDK_PATH}/usr/include/apr-${APR_VERSION%%.*};" \
-        -e "s;\@CC\@;clang;" \
-        -e "s;\@CPP\@;clang -E;" \
+        -e "s;\@installbuilddir\@;${LIBTOOL_DIR};" \
+        -e "s;\@includedir\@;${SDK_PATH}/usr/include/apr-${APR_MAJOR};" \
+        -e "s;\@CC\@;cc;" \
+        -e "s;\@CPP\@;cc -E;" \
         -e "s;\@SHELL\@;/bin/sh;" \
         -e "s;\@EXTRA_CPPFLAGS\@; -DDARWIN -DSIGPROCMASK_SETS_THREAD_MASK;" \
         -e "s;\@EXTRA_CFLAGS\@; -g -O2 -Wall;" \
         -e "s;\@EXTRA_LDFLAGS\@;;" \
         -e "s;\@EXTRA_LIBS\@; -lpthread;" \
-        -e "s;\@EXTRA_INCLUDES\@; -I${SDK_PATH}/usr/include/apr-${APR_VERSION%%.*};" \
+        -e "s;\@EXTRA_INCLUDES\@; -I${SDK_PATH}/usr/include/apr-${APR_MAJOR};" \
         -e "s;\@shlibpath_var\@;DYLD_LIBRARY_PATH;" \
         -e "s;\@apr_srcdir\@;${SDK_PATH};" \
         -e "s;\@apr_builddir\@;${TMPDIR};" \
         -e "s;\@so_ext\@;lo;" \
-        -e "s;\@export_lib_target\@;-rpath \\\$(libdir) \\\$(OBJECTS);" \
-        -e "s;\@APR_LIBNAME\@;apr-${APR_VERSION%%.*};" \
-        -e "s;\@APR_CONFIG_LOCATION\@;${TMPDIR};" > "$TMPDIR/apr-config.out"
+        -e 's;\@export_lib_target\@;-rpath \\\$(libdir) \\\$(OBJECTS);' \
+        -e "s;\@APR_LIBNAME\@;apr-${APR_MAJOR};" \
+        -e "s;\@APR_CONFIG_LOCATION\@;installed;" \
+        -e "s;\@APR_CROSS_COMPILING\@;no;" \
+        -e 's;${SDKROOT};;g' > "$TMPDIR/apr-config.out"
+
+# die loudly when the fetch failed (curl body of an error page, offline, …)
+head -n 1 "$TMPDIR/apr-config.out" | grep -q '^#!' || {
+    echo "fakeapxs: failed to fetch apr-config.in" >&2
+    exit 1
+}
 
 chmod +x "$TMPDIR/apr-config.out"
 
+set +e
 output="$("$TMPDIR/apr-config.out" "$@")"
+rc=$?
+set -e
 
 printf "%s: %s\n" "$*" "$output" >> /tmp/apr.log
 
 echo "$output"
 
-exit
+exit "$rc"
